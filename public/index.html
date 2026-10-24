@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Node MySQL Users</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 20px;
+        background: #f4f7fb;
+      }
+      .card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      form {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      input {
+        flex: 1 1 180px;
+        padding: 10px 12px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+      }
+      button {
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 16px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+      }
+      li {
+        background: #eef4ff;
+        margin: 8px 0;
+        padding: 12px;
+        border-radius: 8px;
+      }
+      h2 {
+        margin-top: 0;
+      }
+      .error {
+        color: red;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Add User</h2>
+      <form id="userForm">
+        <input type="text" id="name" placeholder="Name" required />
+        <input type="email" id="email" placeholder="Email" required />
+        <button type="submit">Add User</button>
+      </form>
+      <div id="message"></div>
+    </div>
+
+    <div class="card">
+      <h2>Users</h2>
+      <button id="loadUsersBtn">Load Users</button>
+      <ul id="userList"></ul>
+    </div>
+
+    <script>
+      const userForm = document.getElementById('userForm');
+      const nameInput = document.getElementById('name');
+      const emailInput = document.getElementById('email');
+      const userList = document.getElementById('userList');
+      const message = document.getElementById('message');
+      const loadUsersBtn = document.getElementById('loadUsersBtn');
+
+      async function loadUsers() {
+        try {
+          const response = await fetch('/api/users');
+          const users = await response.json();
+
+          userList.innerHTML = '';
+          if (!users.length) {
+            userList.innerHTML = '<li>No users found.</li>';
+            return;
+          }
+
+          users.forEach((user) => {
+            const li = document.createElement('li');
+            li.textContent = `${user.id} - ${user.name} (${user.email})`;
+            userList.appendChild(li);
+          });
+        } catch (error) {
+          userList.innerHTML = '<li>Failed to load users.</li>';
+        }
+      }
+
+      userForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = nameInput.value.trim();
+        const email = emailInput.value.trim();
+
+        try {
+          const response = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email })
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.message || 'Failed to create user');
+          }
+
+          message.textContent = result.message;
+          message.style.color = 'green';
+          nameInput.value = '';
+          emailInput.value = '';
+          loadUsers();
+        } catch (error) {
+          message.textContent = error.message;
+          message.style.color = 'red';
+        }
+      });
+
+      loadUsersBtn.addEventListener('click', loadUsers);
+      loadUsers();
+    </script>
+  </body>
+</html>
