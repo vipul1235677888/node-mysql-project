@@ -1,4 +1,3 @@
-```bash
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
@@ -86,4 +85,3 @@ log "Current commit: $(git rev-parse --short HEAD)"
 log "Application service: $SERVICE_NAME"
 
 exit 0
-```
