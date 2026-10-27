@@ -1,9 +1,10 @@
+cat > deploy.sh <<'EOF'
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
 
 APP_DIR="/var/www/node-project/node-mysql-project"
-SERVICE_NAME="node-mysql-project"
+APP_NAME="node-mysql-project"
 BRANCH="main"
 
 log() {
@@ -23,65 +24,66 @@ fi
 
 log "Starting deployment..."
 
-# Verify Git repository
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || fail "This directory is not a Git repository."
 
-# Verify the expected branch
 CURRENT_BRANCH="$(git branch --show-current)"
 
 [[ "$CURRENT_BRANCH" == "$BRANCH" ]] \
     || fail "Expected branch '$BRANCH', found '$CURRENT_BRANCH'."
 
-# Ensure local tracked files do not contain uncommitted changes
 if ! git diff --quiet || ! git diff --cached --quiet; then
     fail "Local tracked changes detected. Commit or safely back them up first."
 fi
 
-# Fetch latest changes from GitHub
 log "Fetching latest code from GitHub..."
-git fetch origin "$BRANCH" \
-    || fail "Git fetch failed. Check network and GitHub access."
 
-# Do not overwrite local commits or create an accidental merge
+git fetch origin "$BRANCH" \
+    || fail "Git fetch failed. Check GitHub access."
+
 git merge-base --is-ancestor HEAD "origin/$BRANCH" \
     || fail "Local branch has diverged from or is ahead of origin/$BRANCH."
 
-if git diff --quiet HEAD "origin/$BRANCH" --; then
-    log "No tracked file changes detected."
-else
-    log "Updating code to the latest GitHub commit..."
+if ! git diff --quiet HEAD "origin/$BRANCH" --; then
+    log "Updating code..."
     git merge --ff-only "origin/$BRANCH" \
         || fail "Fast-forward update failed."
+else
+    log "No tracked file changes detected."
 fi
 
-# Verify required Node.js project files
 [[ -f package.json ]] || fail "package.json not found."
 
-# Install dependencies reproducibly when a lockfile exists
 if [[ -f package-lock.json ]]; then
     log "Installing locked dependencies..."
     npm ci --omit=dev \
         || fail "Dependency installation failed."
 else
-    log "No package-lock.json found; using npm install..."
+    log "Installing dependencies..."
     npm install --omit=dev \
         || fail "Dependency installation failed."
 fi
 
-# Restart the application
-log "Restarting application service..."
-sudo systemctl restart "$SERVICE_NAME" \
-    || fail "Service restart failed."
+log "Checking PM2 application..."
 
-# Confirm the service is running
-if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
-    sudo journalctl -u "$SERVICE_NAME" -n 50 --no-pager
-    fail "Application service is not active."
+if ! pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+    fail "PM2 application '$APP_NAME' not found. Start it manually first."
 fi
 
-log "Deployment completed successfully."
-log "Current commit: $(git rev-parse --short HEAD)"
-log "Application service: $SERVICE_NAME"
+log "Restarting application with PM2..."
 
-exit 0
+pm2 restart "$APP_NAME" --update-env \
+    || fail "PM2 restart failed."
+
+if ! pm2 describe "$APP_NAME" | grep -q "online"; then
+    pm2 logs "$APP_NAME" --lines 50 --nostream || true
+    fail "Application may not be running correctly. Check PM2 status and logs."
+fi
+
+pm2 save
+
+log "Deployment completed."
+log "Current commit: $(git rev-parse --short HEAD)"
+log "PM2 application: $APP_NAME"
+
+EOF
