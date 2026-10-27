@@ -1,4 +1,3 @@
-cat > deploy.sh <<'EOF'
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
@@ -86,4 +85,3 @@ log "Deployment completed."
 log "Current commit: $(git rev-parse --short HEAD)"
 log "PM2 application: $APP_NAME"
 
-EOF
